@@ -51,4 +51,15 @@ contract spl_token_minter {
             amount // amount
         );
     }
+
+    // Transfer tokens from one token account to another via Cross-Program Invocation to Token Program
+    function transferTokens(
+    address from, // token account to transfer from
+    address to, // token account to transfer to
+    uint64 amount // amount of gold to transfer
+    ) public {
+    SplToken.TokenAccountData from_data = SplToken.get_token_account_data(from);
+    SplToken.transfer(from, to, from_data.owner, amount);
+    }
+
 }

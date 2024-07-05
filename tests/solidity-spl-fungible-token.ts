@@ -8,27 +8,28 @@ import {
   getOrCreateAssociatedTokenAccount,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
- 
+
+
 describe("spl-token-minter", () => {
   // Configure the client to use the local cluster.
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
- 
+
   // Generate a new keypair for the data account for the program
   const dataAccount = anchor.web3.Keypair.generate();
   // Generate a mint keypair
   const mintKeypair = anchor.web3.Keypair.generate();
   const wallet = provider.wallet as anchor.Wallet;
   const connection = provider.connection;
- 
+
   const program = anchor.workspace.SplTokenMinter as Program<SplTokenMinter>;
- 
+
   // Metadata for the Token
   const tokenTitle = "HARSH solana tOKEN";
   const tokenSymbol = "HST";
   const tokenUri =
-    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSOY56OM0JM9Mqmw0Fk-Bi5z2VcuJHJOFH_jA&s";
- 
+    "https://raw.githubusercontent.com/Harsh0R/solidity-spl-fungible-token/master/spl-token.json";
+
   it("Is initialized!", async () => {
     // Initialize data account for the program, which is required by Solang
     const tx = await program.methods
@@ -38,7 +39,7 @@ describe("spl-token-minter", () => {
       .rpc();
     console.log("Your transaction signature", tx);
   });
- 
+
   it("Create an SPL Token!", async () => {
     // Get the metadata address for the mint
     const metaplex = Metaplex.make(connection);
@@ -46,7 +47,7 @@ describe("spl-token-minter", () => {
       .nfts()
       .pdas()
       .metadata({ mint: mintKeypair.publicKey });
- 
+
     // Create the token mint
     const tx = await program.methods
       .createTokenMint(
@@ -81,7 +82,7 @@ describe("spl-token-minter", () => {
       .rpc({ skipPreflight: true });
     console.log("Your transaction signature", tx);
   });
- 
+
   it("Mint some tokens to your wallet!", async () => {
     // Wallet's associated token account address for mint
     const tokenAccount = await getOrCreateAssociatedTokenAccount(
@@ -90,7 +91,7 @@ describe("spl-token-minter", () => {
       mintKeypair.publicKey, // mint
       wallet.publicKey // owner
     );
- 
+
     const tx = await program.methods
       .mintTo(
         wallet.publicKey, // payer
@@ -122,4 +123,66 @@ describe("spl-token-minter", () => {
       .rpc({ skipPreflight: true });
     console.log("Your transaction signature", tx);
   });
+
+  // Transfer token to another wallet via CPI
+  it("Transfer some tokens to another wallet!", async () => {
+    // Wallet's associated token account address for mint
+    const tokenAccount = await getOrCreateAssociatedTokenAccount(
+      connection,
+      wallet.payer, // payer
+      mintKeypair.publicKey, // mint
+      wallet.publicKey // owner(shivam)
+    );
+
+    const receipient = anchor.web3.Keypair.generate();
+    const receipientTokenAccount = await getOrCreateAssociatedTokenAccount(
+      connection,
+      wallet.payer, // payer
+      mintKeypair.publicKey, // mint account
+      receipient.publicKey // owner(justin) account
+    );
+
+    console.log("receipientTokenAccount", receipientTokenAccount);
+
+    const tx = await program.methods
+      .transferTokens(
+        tokenAccount.address,
+        receipientTokenAccount.address,
+        new anchor.BN(54000000000)
+      )
+      .accounts({ dataAccount: dataAccount.publicKey })
+      .remainingAccounts([
+        {
+          pubkey: wallet.publicKey,
+          isWritable: true,
+          isSigner: true,
+        },
+        {
+          pubkey: mintKeypair.publicKey,
+          isWritable: false,
+          isSigner: false,
+        },
+        {
+          pubkey: tokenAccount.address,
+          isWritable: true,
+          isSigner: false,
+        },
+        {
+          pubkey: receipientTokenAccount.address,
+          isWritable: true,
+          isSigner: false,
+        },
+      ])
+      .rpc();
+    console.log("Your transaction signature", tx);
+
+    const recepienttokenAmount = (
+      await getAccount(connection, receipientTokenAccount.address)
+    ).amount;
+    console.log("recipienttokenAmount", recepienttokenAmount);
+    let tokens = Number(recepienttokenAmount);
+
+    assert.equal(tokens / LAMPORTS_PER_SOL, 54);
+  });
+
 });
